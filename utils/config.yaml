@@ -1,0 +1,9 @@
+stockfish_path: "C:\\Users\\diogo\\Repositorios\\MeckingLite\\engines\\stockfish\\stockfish\\stockfish.exe"
+phases:
+  v1_depth6:
+    depth: 6
+    positions: 10000
+  v2_depth12:
+    depth: 12
+    positions: 3000
+output_data_dir: "data"
