@@ -36,24 +36,29 @@ def convert_mate_score(score):
     return score.score()  # caso centipawn normal
 
 
-def generate_random_position(min_plies=6, max_plies=40):
+# GERA POSIÇÃO E HISTÓRICO
+def generate_random_position_with_history(min_plies=6, max_plies=40, history_size=4):
     board = chess.Board()
+    history = []
     plies = random.randint(min_plies, max_plies)
     for _ in range(plies):
         if board.is_game_over():
             break
+        history.append(board.fen())
         move = random.choice(list(board.legal_moves))
         board.push(move)
-    return board
+    # manter apenas os últimos N históricos
+    return board, history[-history_size:]
 
 
+# WORKER TASK
 def worker_task(args):
     stockfish_path, depth, batch_size = args
     data = []
     try:
         engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)
         for _ in range(batch_size):
-            board = generate_random_position()
+            board, history = generate_random_position_with_history()
             try:
                 result = engine.analyse(
                     board, chess.engine.Limit(depth=depth), multipv=3
@@ -70,7 +75,9 @@ def worker_task(args):
                             }
                         )
                 if len(top_moves) >= 1:
-                    data.append({"fen": board.fen(), "top_moves": top_moves})
+                    data.append(
+                        {"fen": board.fen(), "history": history, "top_moves": top_moves}
+                    )
             except Exception:
                 continue
         engine.quit()

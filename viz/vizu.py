@@ -13,10 +13,10 @@ print(type(obj))
 if isinstance(obj, dict):
     print("Chaves:", obj.keys())
     # mostrar os primeiros 3 itens
-    for k in list(obj.keys())[:3]:
+    for k in list(obj.keys())[50]:
         print(k, "→", obj[k])
 
 # 4) Se for uma lista:
 if isinstance(obj, list):
     print("Comprimento:", len(obj))
-    print("Primeiros elementos:", obj[:3])
+    print("Primeiros elementos:", obj[0])

@@ -2,8 +2,8 @@ stockfish_path: "C:\\Users\\diogo\\Repositorios\\MeckingLite\\engines\\stockfish
 phases:
   v1_depth6:
     depth: 6
-    positions: 10000
+    positions: 20000
   v2_depth12:
     depth: 12
-    positions: 3000
+    positions: 20000
 output_data_dir: "data"
