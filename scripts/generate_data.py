@@ -68,9 +68,17 @@ def worker_task(args):
                     move = r.get("pv", [None])[0]
                     score = r.get("score")
                     if move and score:
+                        uci = move.uci()
+                        # Se for promoção (len 5), só aceite 'q' e remova o último char
+                        if len(uci) == 5:
+                            if uci[-1].lower() != "q":
+                                continue
+                            move_cleaned = uci[:-1]  # CORREÇÃO AQUI
+                        else:
+                            move_cleaned = uci
                         top_moves.append(
                             {
-                                "move": move.uci(),
+                                "move": move_cleaned,
                                 "score_cp": convert_mate_score(score.relative),
                             }
                         )
@@ -140,7 +148,7 @@ PHASE_CHOOSEN = "v1_depth6"
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--workers", type=int, default=6, help="Núcleos paralelos")
+    parser.add_argument("--workers", type=int, default=3, help="Núcleos paralelos")
     parser.add_argument(
         "--batch", type=int, default=80, help="Tamanho do lote por núcleo"
     )

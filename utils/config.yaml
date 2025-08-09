@@ -7,3 +7,11 @@ phases:
     depth: 12
     positions: 20000
 output_data_dir: "data"
+
+# Treino supervisionado (opcional; pode ficar no root)
+batch_size: 16
+history_size: 4
+mode: "top3"
+lr: 0.001
+epochs: 10
+use_heuristics: true

@@ -45,12 +45,16 @@ def process_data(file_path):
             for move, prob in full_policy.items()
             if move in [m[0] for m in top_moves]
         }
-        residual = sum(
-            prob for move, prob in full_policy.items() if move not in top_policy
-        )
+
+        others = [prob for move, prob in full_policy.items() if move not in top_policy]
+
+        if others:
+            residual_each = others[0]
+        else:
+            residual_each = 0
 
         example["top_policy"] = top_policy
-        example["residual"] = residual
+        example["residual_each"] = residual_each
 
         updated_data.append(example)
 
