@@ -135,25 +135,37 @@ class ChessSupervisedDataset(Dataset):
                 policy[idx_move] = 1.0
 
         elif self.mode == "top3":
-            # Distribuição a partir do sample
-            top_policy = sample.get("top_policy", {})
+            # Reconstrói distribuição a partir de top_policy + residual_each
+            top_policy = sample.get("top_policy", None)
             residual = float(sample.get("residual_each", 0.0))
-            # Preencher top-k
-            for mv, prob in top_policy.items():
-                idx_move = self.move_index_map.get(mv)
-                if idx_move is not None:
-                    policy[idx_move] = float(prob)
-            # Distribuir residual para jogadas legais não no top-k
-            for move in current_board.legal_moves:
-                uci = move.uci()
-                # unificar promoções para dama
-                if len(uci) == 5 and uci[-1].lower() == "q":
-                    uci = uci[:-1]
 
-                if len(uci) == 4 and uci not in top_policy:
-                    idx_move = self.move_index_map.get(uci)
+            # Se não houver, faça fallback para top1
+            if not top_policy:
+                best_move = sample["top_moves"][0]["move"]
+                idx_move = self.move_index_map.get(best_move)
+                if idx_move is not None:
+                    policy[idx_move] = 1.0
+            else:
+                # Preenche top-k
+                for mv, prob in top_policy.items():
+                    idx_move = self.move_index_map.get(mv)
                     if idx_move is not None:
-                        policy[idx_move] = residual
+                        policy[idx_move] = float(prob)
+
+                # Residual para lances legais fora do top-k
+                for move in current_board.legal_moves:
+                    uci = move.uci()
+                    if len(uci) == 5 and uci[-1].lower() == "q":
+                        uci = uci[:-1]
+                    if uci not in top_policy:
+                        idx_move = self.move_index_map.get(uci)
+                        if idx_move is not None:
+                            policy[idx_move] = residual
+
+                # Normaliza por segurança (deve somar ~1)
+                s = policy.sum().item()
+                if s > 0:
+                    policy /= s
 
         # 4) Máscara de movimentos legais
         legal_mask = torch.zeros(self.num_moves, dtype=torch.bool)

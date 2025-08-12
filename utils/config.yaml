@@ -1,17 +1,50 @@
 stockfish_path: "C:\\Users\\diogo\\Repositorios\\MeckingLite\\engines\\stockfish\\stockfish\\stockfish.exe"
+output_data_dir: "data"
+
 phases:
   v1_depth6:
     depth: 6
-    positions: 20000
+    positions: 500000
   v2_depth12:
     depth: 12
-    positions: 20000
-output_data_dir: "data"
+    positions: 250000
 
-# Treino supervisionado (opcional; pode ficar no root)
-batch_size: 16
+# em qual fase treinar agora
+train_phase: "v1_depth6"
+
+curriculum:
+  thresholds:
+    cp_eq_thr: 80
+    rich_min_legal: 25
+    tactic_gap_cp: 180
+
+  phase_v1_depth6:
+    sample_weights:
+      start:   {easy: 0.7, medium: 0.3, hard: 0.0}
+      middle:  {easy: 0.5, medium: 0.5, hard: 0.0}
+      end:     {easy: 0.3, medium: 0.6, hard: 0.1}
+
+  phase_v2_depth12:
+    sample_weights:
+      start:   {easy: 0.2, medium: 0.6, hard: 0.2}
+      middle:  {easy: 0.15, medium: 0.55, hard: 0.30}
+      end:     {easy: 0.10, medium: 0.50, hard: 0.40}
+
+# Treino supervisionado (simples e rápido)
+batch_size: 256        # se faltar VRAM, use 192 ou 128
 history_size: 4
-mode: "top3"
+mode: "top3"           # usa soft labels (KL). Troque para "top1" se quiser CE.
 lr: 0.001
-epochs: 10
+epochs: 10             # nº de épocas do estágio "end". start/middle usam 2 cada (fixo no script)
 use_heuristics: true
+
+# treino prático
+output_dir: "checkpoints"
+use_amp: true          # AMP acelera a 3050
+grad_clip: 1.0         # clipping simples (0 = desliga)
+resume: ""             # caminho de .ckpt para retomar; se vazio, tenta o "latest" automaticamente
+
+early_stop:
+  patience: 3     # quantas épocas seguidas sem melhorar
+  min_delta: 0.001  # melhora mínima na val_loss para “contar”
+  max_epochs: 1000  # só um teto de segurança (pode subir/baixar)
