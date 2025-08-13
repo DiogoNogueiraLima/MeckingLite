@@ -3,4 +3,4 @@ __pycache__/
 *.pth 
 data/ 
 engines/
-checkpoints/
+checkpoints/checkpoints/
