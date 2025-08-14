@@ -56,22 +56,20 @@ const Board = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      <Chessboard
-        width={480}
-        position={game.fen()}
-        onDrop={onDrop}
-        squareStyles={squareStyles}
-      />
-      <div style={{ marginTop: 10 }}>
-        <button onClick={reset}>Restart</button>
-        <button onClick={undo} style={{ marginLeft: 8 }}>Undo</button>
+    <div className="board-container">
+      <div className="board-card">
+        <Chessboard
+          width={480}
+          position={game.fen()}
+          onDrop={onDrop}
+          squareStyles={squareStyles}
+        />
       </div>
-      <textarea
-        readOnly
-        value={pgn}
-        style={{ width: 480, height: 100, marginTop: 10 }}
-      />
+      <div className="controls">
+        <button onClick={reset}>Restart</button>
+        <button onClick={undo}>Undo</button>
+      </div>
+      <textarea className="pgn" readOnly value={pgn} />
     </div>
   );
 };
