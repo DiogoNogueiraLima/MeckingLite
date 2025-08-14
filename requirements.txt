@@ -31,3 +31,5 @@ tinycss2==1.4.0
 tqdm==4.67.1
 typing_extensions==4.14.1
 webencodings==0.5.1
+fastapi==0.115.0
+uvicorn==0.30.0
