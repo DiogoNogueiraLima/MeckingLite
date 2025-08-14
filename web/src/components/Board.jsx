@@ -1,11 +1,12 @@
 import React, { useState, useCallback } from 'react';
 import Chessboard from 'chessboardjsx';
-import Chess from 'chess.js';
+import { Chess } from 'chess.js';
 
 const Board = () => {
   const [game, setGame] = useState(() => new Chess());
   const [squareStyles, setSquareStyles] = useState({});
   const [pgn, setPgn] = useState('');
+  const [orientation, setOrientation] = useState('white');
 
   const highlight = (move) => ({
     [move.from]: { background: 'rgba(255,255,0,0.4)' },
@@ -46,23 +47,32 @@ const Board = () => {
     setPgn('');
   };
 
-  const undo = () => {
-    const g = new Chess(game.fen());
-    g.undo();
-    g.undo();
+  const trade = () => {
+    // Reinicia o jogo
+    const g = new Chess();
     setGame(g);
     setSquareStyles({});
-    setPgn(g.pgn());
+    setPgn('');
+    // Inverte a orientação do tabuleiro
+    setOrientation(orientation === 'white' ? 'black' : 'white');
   };
 
   return (
-    <div>
-      <Chessboard position={game.fen()} onDrop={onDrop} squareStyles={squareStyles} />
-      <div style={{ marginTop: 10 }}>
-        <button onClick={reset}>Restart</button>
-        <button onClick={undo}>Undo</button>
+    <div className="board-container">
+      <div className="board-card">
+        <Chessboard
+          width={480}
+          position={game.fen()}
+          onDrop={onDrop}
+          squareStyles={squareStyles}
+          orientation={orientation}
+        />
       </div>
-      <textarea readOnly value={pgn} style={{ width: '100%', height: 100, marginTop: 10 }} />
+      <div className="controls">
+        <button onClick={reset}>Restart</button>
+        <button onClick={trade}>Trade</button>
+      </div>
+      <textarea className="pgn" readOnly value={pgn} />
     </div>
   );
 };

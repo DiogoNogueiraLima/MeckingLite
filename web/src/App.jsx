@@ -3,7 +3,7 @@ import Board from './components/Board';
 
 export default function App() {
   return (
-    <div style={{ padding: 20 }}>
+    <div className="app">
       <h1>MeckingLite</h1>
       <Board />
     </div>
