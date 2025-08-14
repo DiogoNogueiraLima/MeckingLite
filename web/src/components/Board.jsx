@@ -6,6 +6,7 @@ const Board = () => {
   const [game, setGame] = useState(() => new Chess());
   const [squareStyles, setSquareStyles] = useState({});
   const [pgn, setPgn] = useState('');
+  const [orientation, setOrientation] = useState('white');
 
   const highlight = (move) => ({
     [move.from]: { background: 'rgba(255,255,0,0.4)' },
@@ -46,13 +47,14 @@ const Board = () => {
     setPgn('');
   };
 
-  const undo = () => {
-    const g = new Chess(game.fen());
-    g.undo();
-    g.undo();
+  const trade = () => {
+    // Reinicia o jogo
+    const g = new Chess();
     setGame(g);
     setSquareStyles({});
-    setPgn(g.pgn());
+    setPgn('');
+    // Inverte a orientação do tabuleiro
+    setOrientation(orientation === 'white' ? 'black' : 'white');
   };
 
   return (
@@ -63,11 +65,12 @@ const Board = () => {
           position={game.fen()}
           onDrop={onDrop}
           squareStyles={squareStyles}
+          orientation={orientation}
         />
       </div>
       <div className="controls">
         <button onClick={reset}>Restart</button>
-        <button onClick={undo}>Undo</button>
+        <button onClick={trade}>Trade</button>
       </div>
       <textarea className="pgn" readOnly value={pgn} />
     </div>
