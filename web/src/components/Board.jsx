@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import Chessboard from 'chessboardjsx';
-import Chess from 'chess.js';
+import { Chess } from 'chess.js';
 
 const Board = () => {
   const [game, setGame] = useState(() => new Chess());
@@ -56,13 +56,22 @@ const Board = () => {
   };
 
   return (
-    <div>
-      <Chessboard position={game.fen()} onDrop={onDrop} squareStyles={squareStyles} />
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <Chessboard
+        width={480}
+        position={game.fen()}
+        onDrop={onDrop}
+        squareStyles={squareStyles}
+      />
       <div style={{ marginTop: 10 }}>
         <button onClick={reset}>Restart</button>
-        <button onClick={undo}>Undo</button>
+        <button onClick={undo} style={{ marginLeft: 8 }}>Undo</button>
       </div>
-      <textarea readOnly value={pgn} style={{ width: '100%', height: 100, marginTop: 10 }} />
+      <textarea
+        readOnly
+        value={pgn}
+        style={{ width: 480, height: 100, marginTop: 10 }}
+      />
     </div>
   );
 };
