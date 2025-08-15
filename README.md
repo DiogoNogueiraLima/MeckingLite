@@ -1,5 +1,11 @@
 # MeckingLite
 
+##🖥️ Apresentação
+https://www.canva.com/design/DAGwFEc27ZQ/WeY8_RyVgRS_hxPP6YTUwQ/view?utm_content=DAGwFEc27ZQ&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=h2897ea43c7
+
+##📋 Relatório
+https://docs.google.com/document/d/1oZ5dJNlwYTeScAYTyCdsB7o_kWPReb02JjG_n6ksDTU/edit?usp=sharing
+
 ## 🎯 Objetivo
 Projeto de xadrez com IA que permite jogar contra um modelo de rede neural treinado. Combina desenvolvimento web moderno (React + NestJS) com inteligência artificial em Python para criar uma experiência interativa de xadrez.
 
