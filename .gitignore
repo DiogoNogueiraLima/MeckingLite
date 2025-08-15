@@ -4,3 +4,7 @@ __pycache__/
 data/ 
 engines/
 checkpoints/
+checkpoints_2/
+logs/
+runs/
+optuna_policy_v1.db

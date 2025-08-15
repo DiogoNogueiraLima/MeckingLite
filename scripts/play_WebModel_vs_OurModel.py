@@ -22,7 +22,7 @@ STOCKFISH_PATH = Path(
     r"C:\Users\diogo\Repositorios\MeckingLite\engines\stockfish\stockfish\stockfish.exe"
 )  # <- defina o seu .exe aqui
 CHECKPOINT_PATH = Path(
-    r"C:\Users\diogo\Repositorios\MeckingLite\checkpoints\supervised_epoch10.pt"
+    r"C:\Users\diogo\Repositorios\MeckingLite\checkpoints\supervised_v1_depth6_end_epoch4.ckpt"
 )
 GAMES = 1000
 DEPTH = 1
