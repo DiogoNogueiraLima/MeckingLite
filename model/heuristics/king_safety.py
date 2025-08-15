@@ -2,7 +2,6 @@
 import chess
 from model.heuristics.material import PIECE_VALUES
 
-# Material máxima para normalização: queen(9)+2*rook(5)+2*bishop(3)+2*knight(3)+8*pawn(1)=39
 MAX_MATERIAL_PER_SIDE = (
     PIECE_VALUES[chess.QUEEN]
     + 2 * PIECE_VALUES[chess.ROOK]
@@ -12,57 +11,59 @@ MAX_MATERIAL_PER_SIDE = (
 )
 
 
-def evaluate_king_safety(board):
-    """
-    Avalia a segurança do rei, combinando:
-      - Penalidade por estar no centro (d,e files)
-      - Penalidade por não estar na fileira inicial (rank 0 para brancas, rank 7 para pretas)
-      - Penalidade por ausência de peões de proteção diante do rei
-    O impacto de todas as penalidades é ajustado de acordo com o material do adversário:
-    quanto mais material o oponente tiver, maior a penalização (normalizado por MAX_MATERIAL_PER_SIDE).
-    """
-    total_score = 0.0
+def _opp_material(board, color: chess.Color) -> float:
+    mat = 0.0
+    for pt, val in PIECE_VALUES.items():
+        mat += len(board.pieces(pt, not color)) * val
+    return mat
 
-    # Função para calcular material do lado oposto
-    def opponent_material(color):
-        mat = 0
-        for piece_type, value in PIECE_VALUES.items():
-            count = len(board.pieces(piece_type, not color))
-            mat += count * value
-        return mat
 
-    for color in [chess.WHITE, chess.BLACK]:
-        king_sq = board.king(color)
-        if king_sq is None:
+def evaluate_king_safety(board) -> float:
+    """
+    Score branco - preto, em ~[-1,1].
+    Penaliza rei no centro, fora da rank inicial e sem escudo de peões,
+    escalonado pelo material do oponente (quanto mais peças, maior o risco).
+    """
+    score_white = 0.0
+    score_black = 0.0
+
+    for color in (chess.WHITE, chess.BLACK):
+        ksq = board.king(color)
+        if ksq is None:
             continue
 
-        rank = chess.square_rank(king_sq)
-        file = chess.square_file(king_sq)
+        rank = chess.square_rank(ksq)
+        file = chess.square_file(ksq)
         unscaled = 0.0
 
-        # 1. Centro (files d=3, e=4)
+        # 1) Rei no centro (arquivos d/e)
         if file in (3, 4):
-            unscaled += -2 if color == chess.WHITE else 2
+            unscaled -= 2.0
 
-        # 2. Fileira inicial (rank 0 para brancas, 7 para pretas)
-        home_rank = 0 if color == chess.WHITE else 7
-        if rank != home_rank:
-            unscaled += -1.5 if color == chess.WHITE else 1.5
+        # 2) Fora da rank inicial
+        home = 0 if color == chess.WHITE else 7
+        if rank != home:
+            unscaled -= 1.5
 
-        # 3. Proteção de peões na frente do rei
+        # 3) Falta de peões no “escudo” (duas casas à frente do rei)
         prot_rank = rank + 1 if color == chess.WHITE else rank - 1
         for df in (-1, 0, 1):
             f = file + df
             if 0 <= f <= 7 and 0 <= prot_rank <= 7:
                 sq = chess.square(f, prot_rank)
                 if sq not in board.pieces(chess.PAWN, color):
-                    unscaled += -0.5 if color == chess.WHITE else 0.5
+                    unscaled -= 0.5
 
-        # Normaliza pela quantidade de material do oponente
-        opp_mat = opponent_material(color)
+        # Escalonar pelo material do oponente
+        opp_mat = _opp_material(board, color)
         scale = opp_mat / MAX_MATERIAL_PER_SIDE if MAX_MATERIAL_PER_SIDE > 0 else 1.0
-        total_score += unscaled * scale
+        s = unscaled * scale
 
-    score = unscaled * (opp_mat / MAX_MATERIAL_PER_SIDE)
+        if color == chess.WHITE:
+            score_white += s
+        else:
+            score_black += s
 
-    return max(-1.0, min(1.0, score))
+    # branco - preto e clamp ~[-1,1]
+    raw = score_white - score_black
+    return max(-1.0, min(1.0, raw))
