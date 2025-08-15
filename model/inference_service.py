@@ -38,9 +38,7 @@ def build_inputs(board: chess.Board, history_size: int, use_heuristics: bool):
     """Constrói inputs para o modelo"""
     board_np = board_to_tensor(board)
     
-    # Para compatibilidade com checkpoint: SEMPRE usar history_size = 4
-    # Checkpoint espera 60 canais = 12 * (4 + 1)
-    history_size = 4  # Forçar para compatibilidade
+    # Usar history_size configurável (arquitetura moderna)
     hist = np.zeros((12 * history_size, 8, 8), dtype=np.float32)
     board_np = np.concatenate([hist, board_np], axis=0)
     
@@ -56,9 +54,11 @@ def build_inputs(board: chess.Board, history_size: int, use_heuristics: bool):
     turn_flag = float(board.turn)
     half_moves = (board.fullmove_number - 1) * 2 + int(board.turn == chess.BLACK)
     
-    # Compatibilidade: usar apenas 2 dimensões como no checkpoint original
+    # Arquitetura moderna: usar 4 dimensões [halfmoves_norm, turn, canK, canQ]
+    canK = float(board.has_kingside_castling_rights(board.turn))
+    canQ = float(board.has_queenside_castling_rights(board.turn))
     half_moves_n_turn = torch.tensor(
-        [[half_moves / 40.0, turn_flag]], dtype=torch.float32
+        [[half_moves / 40.0, turn_flag, canK, canQ]], dtype=torch.float32
     )
     
     return board_tensor, heur, half_moves_n_turn
@@ -90,11 +90,15 @@ def predict_move(fen: str):
     try:
         # 1. Carregar configuração
         cfg = load_config()
-        history_size = int(cfg.get("history_size", 4))  # Forçar 4 para compatibilidade
+        history_size = int(cfg.get("history_size", 0))  # Usar valor do config
         use_heuristics = bool(cfg.get("use_heuristics", True))
+        use_meta_planes = bool(cfg.get("use_meta_planes", True))  # Ativar meta planes
+        dropout = float(cfg.get("dropout", 0.1))
         
         root = Path(__file__).resolve().parents[1]
-        checkpoint_path = Path(cfg.get("checkpoint_path", root / "checkpoints" / "supervised_epoch10.pt"))
+        # Usar checkpoint TREINADO por padrão
+        default_checkpoint = root / "checkpoints" / "supervised_v1_depth6_end_epoch9.ckpt"
+        checkpoint_path = Path(cfg.get("checkpoint_path", default_checkpoint))
         
         if not checkpoint_path.exists():
             raise FileNotFoundError(f"Checkpoint não encontrado: {checkpoint_path}")
@@ -123,7 +127,7 @@ def predict_move(fen: str):
         move_index_map, num_moves = get_move_index_map()
         inv_move_index_map = {v: k for k, v in move_index_map.items()}
         
-        # 4. Carregar modelo
+        # 4. Carregar modelo (ARQUITETURA MODERNA)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
         net = ChessPolicyNetwork(
@@ -131,8 +135,10 @@ def predict_move(fen: str):
             history_size=history_size,
             heur_dim=8,
             use_heuristics=use_heuristics,
-            half_moves_n_turn_dim=2,  # Compatibilidade com checkpoint
-            legacy_mode=True,  # ATIVA modo compatibilidade com checkpoint antigo
+            half_moves_n_turn_dim=4,  # Arquitetura moderna: 4 dimensões
+            dropout=dropout,
+            use_meta_planes=use_meta_planes,  # Ativar meta planes
+            legacy_mode=False,  # ✅ ARQUITETURA MODERNA ATIVADA
         ).to(device)
         
         # Carregar pesos

@@ -19,11 +19,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
-STOCKFISH_PATH = Path(
-    r"C:\Users\diogo\Repositorios\MeckingLite\engines\stockfish\stockfish\stockfish.exe"
-)
+STOCKFISH_PATH = Path("/opt/homebrew/bin/stockfish")  # Stockfish instalado via Homebrew
 CHECKPOINT_PATH = Path(
-    r"C:\Users\diogo\Repositorios\MeckingLite\checkpoints\supervised_v1_depth6_middle_epoch3.ckpt"
+    "/Users/Marcelo-Petroni/Documents/MeckingLite/checkpoints/supervised_v1_depth6_end_epoch9.ckpt"
 )
 
 # Avaliador (Stockfish) – rápido e previsível
@@ -32,7 +30,7 @@ SF_PICK_THREADS = 1  # 1 thread (menor overhead)
 SF_PICK_HASH_MB = 8  # hash pequeno basta para buscas curtas
 
 # Geração de candidatos pelo modelo
-TOPK = 8  # Top-K da rede para passar ao Stockfish (8–12 é ótimo)
+TOPK = 9  # Top-K da rede para passar ao Stockfish (8–12 é ótimo)
 
 # Oponentes e partidas
 RUN_RANDOM = True
@@ -364,5 +362,5 @@ if __name__ == "__main__":
     )
     if RUN_SF_D4:
         run_matches_vs(
-            "Stockfish d4", lambda: StockfishAgent(STOCKFISH_PATH, 6), GAMES_PER_OPP
+            "Stockfish d4", lambda: StockfishAgent(STOCKFISH_PATH, 1), GAMES_PER_OPP
         )
