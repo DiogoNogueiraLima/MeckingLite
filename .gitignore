@@ -1,12 +1,8 @@
 .venv/
 __pycache__/
 *.pth
-data/
-engines/
-checkpoints/
-checkpoints_2/
-logs/
 runs/
+data/
 optuna_policy_v1.db
 # Node.js / Frontend
 node_modules/
