@@ -1,9 +1,9 @@
 # MeckingLite
 
-##🖥️ Apresentação
+## 🖥️ Apresentação
 https://www.canva.com/design/DAGwFEc27ZQ/WeY8_RyVgRS_hxPP6YTUwQ/view?utm_content=DAGwFEc27ZQ&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=h2897ea43c7
 
-##📋 Relatório
+## 📋 Relatório
 https://docs.google.com/document/d/1oZ5dJNlwYTeScAYTyCdsB7o_kWPReb02JjG_n6ksDTU/edit?usp=sharing
 
 ## 🎯 Objetivo
