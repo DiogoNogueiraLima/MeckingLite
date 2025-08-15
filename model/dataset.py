@@ -102,8 +102,18 @@ class ChessSupervisedDataset(Dataset):
         half_moves = (current_board.fullmove_number - 1) * 2 + int(
             current_board.turn == chess.BLACK
         )
+
+        # kingside = roque pequeno; queenside = roque grande
+        can_kingside = float(
+            current_board.has_kingside_castling_rights(current_board.turn)
+        )
+        can_queenside = float(
+            current_board.has_queenside_castling_rights(current_board.turn)
+        )
+
         half_mov_n_turn_tensor = torch.tensor(
-            [half_moves / 40, turn_flag], dtype=torch.float32
+            [half_moves / 40.0, turn_flag, can_kingside, can_queenside],  # agora 4 dims
+            dtype=torch.float32,
         )
 
         # 1) Board Tensor

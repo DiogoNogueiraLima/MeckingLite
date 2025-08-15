@@ -9,7 +9,6 @@ phases:
     depth: 12
     positions: 250000
 
-# em qual fase treinar agora
 train_phase: "v1_depth6"
 
 curriculum:
@@ -30,21 +29,65 @@ curriculum:
       middle:  {easy: 0.15, medium: 0.55, hard: 0.30}
       end:     {easy: 0.10, medium: 0.50, hard: 0.40}
 
-# Treino supervisionado (simples e rápido)
-batch_size: 256        # se faltar VRAM, use 192 ou 128
-history_size: 4
-mode: "top3"           # usa soft labels (KL). Troque para "top1" se quiser CE.
-lr: 0.001
-epochs: 10             # nº de épocas do estágio "end". start/middle usam 2 cada (fixo no script)
+# Treino supervisionado “final”
+batch_size: 256
+history_size: 0
+mode: "top3"           # mantém geração de alvos soft no dataset
+weight_decay: 0.0001 
+lr: 0.0003
+grad_clip: 1.0
+epochs: 10             # teto para o stage "end" quando usar early stop
 use_heuristics: true
 
-# treino prático
 output_dir: "checkpoints"
-use_amp: true          # AMP acelera a 3050
-grad_clip: 1.0         # clipping simples (0 = desliga)
-resume: ""             # caminho de .ckpt para retomar; se vazio, tenta o "latest" automaticamente
+use_amp: true
+resume: ""             # se vazio, retoma automaticamente do mais recente
 
 early_stop:
-  patience: 3     # quantas épocas seguidas sem melhorar
-  min_delta: 0.001  # melhora mínima na val_loss para “contar”
-  max_epochs: 1000  # só um teto de segurança (pode subir/baixar)
+  patience: 3
+  min_delta: 0.001
+  max_epochs: 1000
+
+logging:
+  tensorboard_dir: "runs"
+  csv_dir: "logs"
+  save_every_epoch: true
+
+# >>> NOVO: agenda de perdas por stage
+loss_schedule:
+  start:
+    mode: "pairwise"
+    epochs: 2
+    params:
+      negatives: 4
+      margin: 1.0
+  middle:
+    mode: "topk_kl"
+    epochs: 3
+    params:
+      topk: 3
+      temperature: 0.8
+  end:
+    mode: "kl"        # KL completo para calibrar
+    epochs: null      # null -> usa early stop com 'epochs' como teto
+    params: {}
+
+
+# Optuna
+optuna:
+  enable: true
+  study_name: "policy_tuning_v1"
+  storage: "sqlite:///optuna_policy_v1.db"  # arquivo .db na raiz do projeto
+  direction: "minimize"          # minimizar val_loss
+  n_trials: 20                   # ajuste rápido
+  timeout_minutes: 90           # ou 0 para sem limite
+  sample_fraction: 0.12          # usa 12% do treino para cada trial (acelera)
+  max_epochs_per_trial: 2        # 1-2 épocas por trial é suficiente
+  # espaços de busca
+  search_space:
+    lr: [0.0002, 0.0003, 0.0005, 0.001]
+    weight_decay: [0.00003, 0.0001]
+    dropout: [0.0, 0.1]
+    label_smoothing: [0.0, 0.05, 0.1]   # usado só se mode="top1"
+    batch_size: [128, 192, 256]         # tentativas; se não couber, reduz automaticamente
+    accum_steps: [1, 2, 4]              # para chegar em batch efetivo maior

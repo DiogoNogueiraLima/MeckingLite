@@ -8,9 +8,12 @@ def _init_weights(m: nn.Module):
         nn.init.kaiming_normal_(m.weight, nonlinearity="relu")
         if m.bias is not None:
             nn.init.zeros_(m.bias)
-    elif isinstance(m, nn.BatchNorm2d):
-        nn.init.ones_(m.weight)
-        nn.init.zeros_(m.bias)
+    elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
+        # compatível caso existam BN antigas em checkpoints
+        if hasattr(m, "weight") and m.weight is not None:
+            nn.init.ones_(m.weight)
+        if hasattr(m, "bias") and m.bias is not None:
+            nn.init.zeros_(m.bias)
     elif isinstance(m, nn.Linear):
         nn.init.xavier_uniform_(m.weight)
         nn.init.zeros_(m.bias)
@@ -23,78 +26,84 @@ class ChessPolicyNetwork(nn.Module):
         history_size=0,
         heur_dim=8,
         use_heuristics=True,
-        half_moves_n_turn_dim=2,
-        dropout: float = 0.0,  # NEW: opcional (padrão 0.0 = desativado)
+        half_moves_n_turn_dim=4,  # [halfmoves_norm, turn, canK, canQ]
+        dropout: float = 0.1,
+        use_meta_planes: bool = True,  # NEW: injeta turn/castling como planos 8x8
     ):
-        """
-        num_moves: tamanho da política (nº de movimentos possíveis)
-        history_size: quantas posições anteriores empilhar (12*(H+1) canais)
-        heur_dim: dimensão do vetor de heurísticas
-        use_heuristics: inclui ou não as heurísticas
-        """
         super().__init__()
-        self.half_moves_n_turn_dim = half_moves_n_turn_dim
         self.use_heuristics = use_heuristics
-        in_channels = 12 * (history_size + 1)
+        self.half_moves_n_turn_dim = half_moves_n_turn_dim
+        self.use_meta_planes = use_meta_planes
 
-        # Convs + BN + ReLU (iguais às suas, só com bias=False e ReLU inplace)
-        self.conv1 = nn.Conv2d(
-            in_channels, 64, kernel_size=3, padding=1, bias=False
-        )  # NEW: bias=False
-        self.bn1 = nn.BatchNorm2d(64)
-        self.conv2 = nn.Conv2d(
-            64, 128, kernel_size=3, padding=1, bias=False
-        )  # NEW: bias=False
-        self.bn2 = nn.BatchNorm2d(128)
-        self.conv3 = nn.Conv2d(
-            128, 256, kernel_size=3, padding=1, bias=False
-        )  # NEW: bias=False
-        self.bn3 = nn.BatchNorm2d(256)
-        self.conv4 = nn.Conv2d(
-            256, 256, kernel_size=3, padding=1, bias=False
-        )  # NEW: bias=False
-        self.bn4 = nn.BatchNorm2d(256)
+        base_in = 12 * (history_size + 1)
+        # se usar planos, adicionamos 3 canais (turn, canK, canQ) antes das convs
+        in_channels = base_in + (3 if self.use_meta_planes else 0)
 
-        # Flatten + MLP
-        self.flatten = nn.Flatten()
-        self.fc_board = nn.Linear(256 * 8 * 8, 512)
+        def GN(c):
+            g = 8 if c >= 8 else 1
+            return nn.GroupNorm(g, c)
 
-        # Heurísticas (igual ao seu)
+        self.conv1 = nn.Conv2d(in_channels, 64, kernel_size=3, padding=1, bias=False)
+        self.gn1 = GN(64)
+        self.conv2 = nn.Conv2d(64, 96, kernel_size=3, padding=1, bias=False)
+        self.gn2 = GN(96)
+        self.conv3 = nn.Conv2d(96, 128, kernel_size=3, padding=1, bias=False)
+        self.gn3 = GN(128)
+        self.conv4 = nn.Conv2d(128, 128, kernel_size=3, padding=1, bias=False)
+        self.gn4 = GN(128)
+
+        self.gap = nn.AdaptiveAvgPool2d(1)
+        feat_dim = 128
+
         if self.use_heuristics:
-            self.fc_heur = nn.Linear(heur_dim, 32)
-            combined_dim = 512 + 32
+            self.fc_heur = nn.Linear(heur_dim, 16)
+            combined_dim = feat_dim + 16
         else:
             self.fc_heur = None
-            combined_dim = 512
+            combined_dim = feat_dim
 
-        self.fc_combined = nn.Linear(combined_dim + self.half_moves_n_turn_dim, 256)
-        self.dropout = nn.Dropout(dropout)  # NEW: simples e opcional (default 0.0)
+        # Mesmo que metade entre como planos, mantemos o vetor de 4 dims;
+        # no forward vamos DESCARTAR turn/castling dessa parte para evitar duplicação.
+        self.fc_combined = nn.Linear(
+            combined_dim
+            + self.half_moves_n_turn_dim
+            - (3 if self.use_meta_planes else 0),
+            128,
+        )
+        self.dropout = nn.Dropout(dropout)
+        self.policy_head = nn.Linear(128, num_moves)
 
-        # Cabeça de política
-        self.policy_head = nn.Linear(256, num_moves)
-
-        # Inicialização de pesos (estável e rápida)
         self.apply(_init_weights)
 
     def forward(self, board_tensor, heur_tensor=None, half_moves_n_turn_tensor=None):
-        # board_tensor: [B, in_channels, 8, 8]
-        x = F.relu(self.bn1(self.conv1(board_tensor)), inplace=True)
-        x = F.relu(self.bn2(self.conv2(x)), inplace=True)
-        x = F.relu(self.bn3(self.conv3(x)), inplace=True)
-        x = F.relu(self.bn4(self.conv4(x)), inplace=True)
+        # half_moves_n_turn_tensor: [B, 4] -> [halfmoves_norm, turn, canK, canQ]
+        if self.use_meta_planes and half_moves_n_turn_tensor is not None:
+            B, _, H, W = board_tensor.shape
+            # extrai turn/canK/canQ e expande para 8x8
+            turn = half_moves_n_turn_tensor[:, 1].view(B, 1, 1, 1).expand(B, 1, H, W)
+            canK = half_moves_n_turn_tensor[:, 2].view(B, 1, 1, 1).expand(B, 1, H, W)
+            canQ = half_moves_n_turn_tensor[:, 3].view(B, 1, 1, 1).expand(B, 1, H, W)
+            board_tensor = torch.cat([board_tensor, turn, canK, canQ], dim=1)
 
-        x = self.flatten(x)  # [B, 256*8*8]
-        x = F.relu(self.fc_board(x), inplace=True)  # [B, 512]
+        x = F.relu(self.gn1(self.conv1(board_tensor)))
+        x = F.relu(self.gn2(self.conv2(x)))
+        x = F.relu(self.gn3(self.conv3(x)))
+        x = F.relu(self.gn4(self.conv4(x)))
+
+        x = self.gap(x).squeeze(-1).squeeze(-1)  # [B, 128]
 
         if self.use_heuristics and heur_tensor is not None and self.fc_heur is not None:
-            h = F.relu(self.fc_heur(heur_tensor), inplace=True)  # [B, 32]
-            x = torch.cat([x, h], dim=1)  # [B, 544] se heurísticas
+            h = F.relu(self.fc_heur(heur_tensor))  # [B, 16]
+            x = torch.cat([x, h], dim=1)
 
         if half_moves_n_turn_tensor is not None:
-            # [B, 2] -> [halfmoves_norm, turn_flag]
-            x = torch.cat([x, half_moves_n_turn_tensor], dim=1)
+            if self.use_meta_planes:
+                # só concatenamos o halfmoves_norm (índice 0) — 1 dimensão
+                x = torch.cat([x, half_moves_n_turn_tensor[:, 0:1]], dim=1)
+            else:
+                # concatena todas as 4 dims no caso sem planos
+                x = torch.cat([x, half_moves_n_turn_tensor], dim=1)
 
-        x = F.relu(self.fc_combined(x), inplace=True)  # [B, 256]
-        x = self.dropout(x)  # NEW: no-op se dropout=0.0
-        policy_logits = self.policy_head(x)  # [B, num_moves]
-        return policy_logits
+        x = F.relu(self.fc_combined(x))
+        x = self.dropout(x)
+        return self.policy_head(x)
