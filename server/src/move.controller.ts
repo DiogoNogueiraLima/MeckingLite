@@ -6,7 +6,12 @@ import * as path from 'path';
 const execAsync = promisify(exec);
 
 type MoveRequest = { fen: string };
-type MoveResponse = { move: string };
+type MoveResponse = { 
+  move?: string;
+  game_over?: boolean;
+  result?: string;
+  winner?: string;
+};
 
 @Controller()
 export class MoveController {
@@ -45,6 +50,16 @@ export class MoveController {
         throw new HttpException(result.error, 400);
       }
 
+      // Verificar se é final de jogo
+      if (result.game_over) {
+        return {
+          game_over: result.game_over,
+          result: result.result,
+          winner: result.winner,
+        };
+      }
+
+      // Lance normal
       if (!result.move) {
         throw new HttpException('No move returned from model', 500);
       }

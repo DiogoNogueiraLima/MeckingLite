@@ -38,9 +38,9 @@ def build_inputs(board: chess.Board, history_size: int, use_heuristics: bool):
     """Constrói inputs para o modelo"""
     board_np = board_to_tensor(board)
     
-    if history_size > 0:
-        hist = np.zeros((12 * history_size, 8, 8), dtype=np.float32)
-        board_np = np.concatenate([hist, board_np], axis=0)
+    # Usar history_size configurável (arquitetura moderna)
+    hist = np.zeros((12 * history_size, 8, 8), dtype=np.float32)
+    board_np = np.concatenate([hist, board_np], axis=0)
     
     board_tensor = torch.from_numpy(board_np).unsqueeze(0)
 
@@ -53,8 +53,12 @@ def build_inputs(board: chess.Board, history_size: int, use_heuristics: bool):
 
     turn_flag = float(board.turn)
     half_moves = (board.fullmove_number - 1) * 2 + int(board.turn == chess.BLACK)
+    
+    # Arquitetura moderna: usar 4 dimensões [halfmoves_norm, turn, canK, canQ]
+    canK = float(board.has_kingside_castling_rights(board.turn))
+    canQ = float(board.has_queenside_castling_rights(board.turn))
     half_moves_n_turn = torch.tensor(
-        [[half_moves / 40.0, turn_flag]], dtype=torch.float32
+        [[half_moves / 40.0, turn_flag, canK, canQ]], dtype=torch.float32
     )
     
     return board_tensor, heur, half_moves_n_turn
@@ -86,11 +90,15 @@ def predict_move(fen: str):
     try:
         # 1. Carregar configuração
         cfg = load_config()
-        history_size = int(cfg.get("history_size", 4))
+        history_size = int(cfg.get("history_size", 0))  # Usar valor do config
         use_heuristics = bool(cfg.get("use_heuristics", True))
+        use_meta_planes = bool(cfg.get("use_meta_planes", True))  # Ativar meta planes
+        dropout = float(cfg.get("dropout", 0.1))
         
         root = Path(__file__).resolve().parents[1]
-        checkpoint_path = Path(cfg.get("checkpoint_path", root / "checkpoints" / "supervised_epoch10.pt"))
+        # Usar checkpoint TREINADO por padrão
+        default_checkpoint = root / "checkpoints" / "supervised_v1_depth6_end_epoch9.ckpt"
+        checkpoint_path = Path(cfg.get("checkpoint_path", default_checkpoint))
         
         if not checkpoint_path.exists():
             raise FileNotFoundError(f"Checkpoint não encontrado: {checkpoint_path}")
@@ -98,14 +106,28 @@ def predict_move(fen: str):
         # 2. Criar board do chess.py
         board = chess.Board(fen)
         
+        # Verificar se o jogo acabou
         if board.is_game_over():
-            return None
+            # Retornar informação sobre o final do jogo
+            if board.is_checkmate():
+                winner = "black" if board.turn == chess.WHITE else "white"
+                return {"game_over": True, "result": "checkmate", "winner": winner}
+            elif board.is_stalemate():
+                return {"game_over": True, "result": "stalemate", "winner": "draw"}
+            elif board.is_insufficient_material():
+                return {"game_over": True, "result": "insufficient_material", "winner": "draw"}
+            elif board.is_fivefold_repetition():
+                return {"game_over": True, "result": "repetition", "winner": "draw"}
+            elif board.is_seventyfive_moves():
+                return {"game_over": True, "result": "75_moves", "winner": "draw"}
+            else:
+                return {"game_over": True, "result": "unknown", "winner": "draw"}
             
         # 3. Preparar dados do modelo
         move_index_map, num_moves = get_move_index_map()
         inv_move_index_map = {v: k for k, v in move_index_map.items()}
         
-        # 4. Carregar modelo
+        # 4. Carregar modelo (ARQUITETURA MODERNA)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
         net = ChessPolicyNetwork(
@@ -113,6 +135,10 @@ def predict_move(fen: str):
             history_size=history_size,
             heur_dim=8,
             use_heuristics=use_heuristics,
+            half_moves_n_turn_dim=4,  # Arquitetura moderna: 4 dimensões
+            dropout=dropout,
+            use_meta_planes=use_meta_planes,  # Ativar meta planes
+            legacy_mode=False,  # ✅ ARQUITETURA MODERNA ATIVADA
         ).to(device)
         
         # Carregar pesos
@@ -171,11 +197,17 @@ def main():
     fen = sys.argv[1]
     
     try:
-        move = predict_move(fen)
-        if move:
-            print(json.dumps({"move": move}))
-        else:
+        result = predict_move(fen)
+        if result is None:
             print(json.dumps({"error": "No valid move found"}))
+        elif isinstance(result, dict) and result.get("game_over"):
+            # Final de jogo detectado
+            print(json.dumps(result))
+        elif isinstance(result, str):
+            # Lance normal
+            print(json.dumps({"move": result}))
+        else:
+            print(json.dumps({"error": "Invalid result from model"}))
     except Exception as e:
         print(json.dumps({"error": str(e)}))
 

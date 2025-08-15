@@ -25,7 +25,7 @@ torch.backends.cudnn.benchmark = True
 
 # ---------- utils ----------
 def load_config():
-    config_path = Path(__file__).parent.parent / "utils\\config.yaml"
+    config_path = Path(__file__).parent.parent / "utils" / "config.yaml"
     with open(config_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 

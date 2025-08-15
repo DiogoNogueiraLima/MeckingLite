@@ -1,4 +1,4 @@
-stockfish_path: "C:\\Users\\diogo\\Repositorios\\MeckingLite\\engines\\stockfish\\stockfish\\stockfish.exe"
+stockfish_path: "/opt/homebrew/bin/stockfish"
 output_data_dir: "data"
 
 phases:
@@ -38,8 +38,11 @@ lr: 0.0003
 grad_clip: 1.0
 epochs: 10             # teto para o stage "end" quando usar early stop
 use_heuristics: true
+use_meta_planes: true  # Ativar meta planes para arquitetura moderna
+dropout: 0.1
 
 output_dir: "checkpoints"
+checkpoint_path: "checkpoints/supervised_v1_depth6_end_epoch9.ckpt"  # Modelo TREINADO com arquitetura moderna!
 use_amp: true
 resume: ""             # se vazio, retoma automaticamente do mais recente
 

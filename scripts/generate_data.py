@@ -36,7 +36,7 @@ def dedup_merge(existing_list, new_list):
     return existing_list, added
 
 
-def set_seed(seed: int | None):
+def set_seed(seed):
     if seed is not None:
         random.seed(seed)
 
