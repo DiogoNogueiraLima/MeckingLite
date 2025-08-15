@@ -38,9 +38,11 @@ def build_inputs(board: chess.Board, history_size: int, use_heuristics: bool):
     """Constrói inputs para o modelo"""
     board_np = board_to_tensor(board)
     
-    if history_size > 0:
-        hist = np.zeros((12 * history_size, 8, 8), dtype=np.float32)
-        board_np = np.concatenate([hist, board_np], axis=0)
+    # Para compatibilidade com checkpoint: SEMPRE usar history_size = 4
+    # Checkpoint espera 60 canais = 12 * (4 + 1)
+    history_size = 4  # Forçar para compatibilidade
+    hist = np.zeros((12 * history_size, 8, 8), dtype=np.float32)
+    board_np = np.concatenate([hist, board_np], axis=0)
     
     board_tensor = torch.from_numpy(board_np).unsqueeze(0)
 
@@ -53,6 +55,8 @@ def build_inputs(board: chess.Board, history_size: int, use_heuristics: bool):
 
     turn_flag = float(board.turn)
     half_moves = (board.fullmove_number - 1) * 2 + int(board.turn == chess.BLACK)
+    
+    # Compatibilidade: usar apenas 2 dimensões como no checkpoint original
     half_moves_n_turn = torch.tensor(
         [[half_moves / 40.0, turn_flag]], dtype=torch.float32
     )
@@ -86,7 +90,7 @@ def predict_move(fen: str):
     try:
         # 1. Carregar configuração
         cfg = load_config()
-        history_size = int(cfg.get("history_size", 4))
+        history_size = int(cfg.get("history_size", 4))  # Forçar 4 para compatibilidade
         use_heuristics = bool(cfg.get("use_heuristics", True))
         
         root = Path(__file__).resolve().parents[1]
@@ -98,8 +102,22 @@ def predict_move(fen: str):
         # 2. Criar board do chess.py
         board = chess.Board(fen)
         
+        # Verificar se o jogo acabou
         if board.is_game_over():
-            return None
+            # Retornar informação sobre o final do jogo
+            if board.is_checkmate():
+                winner = "black" if board.turn == chess.WHITE else "white"
+                return {"game_over": True, "result": "checkmate", "winner": winner}
+            elif board.is_stalemate():
+                return {"game_over": True, "result": "stalemate", "winner": "draw"}
+            elif board.is_insufficient_material():
+                return {"game_over": True, "result": "insufficient_material", "winner": "draw"}
+            elif board.is_fivefold_repetition():
+                return {"game_over": True, "result": "repetition", "winner": "draw"}
+            elif board.is_seventyfive_moves():
+                return {"game_over": True, "result": "75_moves", "winner": "draw"}
+            else:
+                return {"game_over": True, "result": "unknown", "winner": "draw"}
             
         # 3. Preparar dados do modelo
         move_index_map, num_moves = get_move_index_map()
@@ -113,6 +131,8 @@ def predict_move(fen: str):
             history_size=history_size,
             heur_dim=8,
             use_heuristics=use_heuristics,
+            half_moves_n_turn_dim=2,  # Compatibilidade com checkpoint
+            legacy_mode=True,  # ATIVA modo compatibilidade com checkpoint antigo
         ).to(device)
         
         # Carregar pesos
@@ -171,11 +191,17 @@ def main():
     fen = sys.argv[1]
     
     try:
-        move = predict_move(fen)
-        if move:
-            print(json.dumps({"move": move}))
-        else:
+        result = predict_move(fen)
+        if result is None:
             print(json.dumps({"error": "No valid move found"}))
+        elif isinstance(result, dict) and result.get("game_over"):
+            # Final de jogo detectado
+            print(json.dumps(result))
+        elif isinstance(result, str):
+            # Lance normal
+            print(json.dumps({"move": result}))
+        else:
+            print(json.dumps({"error": "Invalid result from model"}))
     except Exception as e:
         print(json.dumps({"error": str(e)}))
 
